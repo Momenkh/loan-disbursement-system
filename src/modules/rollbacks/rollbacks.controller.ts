@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UseGuards } from '@nestjs/common';
-import { RepaymentsService } from './repayments.service';
-import { CreateRepaymentDto } from './dto/create-repayment.dto';
+import { RollbacksService } from './rollbacks.service';
+import { RollbackTransactionDto } from './dto/rollback-transaction.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -14,21 +14,21 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 
-@ApiTags('repayments')
+@ApiTags('rollbacks')
 @ApiBearerAuth()
-@Controller('repayments')
-export class RepaymentsController {
-  constructor(private readonly service: RepaymentsService) {}
+@Controller('rollbacks')
+export class RollbacksController {
+  constructor(private readonly service: RollbacksService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('staff', 'system')
-  @ApiOperation({ summary: 'Create a repayment' })
-  @ApiCreatedResponse({ description: 'Repayment created', type: CreateRepaymentDto })
+  @Roles('admin', 'system')
+  @ApiOperation({ summary: 'Rollback a transaction' })
+  @ApiCreatedResponse({ description: 'Rollback recorded', type: RollbackTransactionDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-  @ApiBody({ type: CreateRepaymentDto })
-  async create(@Body() dto: CreateRepaymentDto) {
-    return this.service.createRepayment(dto);
+  @ApiBody({ type: RollbackTransactionDto })
+  async rollback(@Body() dto: RollbackTransactionDto) {
+    return this.service.rollbackTransaction(dto);
   }
 }

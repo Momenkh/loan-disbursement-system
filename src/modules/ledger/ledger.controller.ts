@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UseGuards } from '@nestjs/common';
-import { RepaymentsService } from './repayments.service';
-import { CreateRepaymentDto } from './dto/create-repayment.dto';
+import { LedgerService } from './ledger.service';
+import { CreateLedgerEntryDto } from './dto/create-ledger-entry.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -14,21 +14,21 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 
-@ApiTags('repayments')
+@ApiTags('ledger')
 @ApiBearerAuth()
-@Controller('repayments')
-export class RepaymentsController {
-  constructor(private readonly service: RepaymentsService) {}
+@Controller('ledger')
+export class LedgerController {
+  constructor(private readonly service: LedgerService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('staff', 'system')
-  @ApiOperation({ summary: 'Create a repayment' })
-  @ApiCreatedResponse({ description: 'Repayment created', type: CreateRepaymentDto })
+  @Roles('admin', 'system', 'staff')
+  @ApiOperation({ summary: 'Create a ledger entry' })
+  @ApiCreatedResponse({ description: 'Ledger entry created', type: CreateLedgerEntryDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-  @ApiBody({ type: CreateRepaymentDto })
-  async create(@Body() dto: CreateRepaymentDto) {
-    return this.service.createRepayment(dto);
+  @ApiBody({ type: CreateLedgerEntryDto })
+  async create(@Body() dto: CreateLedgerEntryDto) {
+    return this.service.createLedgerEntry(dto);
   }
 }
