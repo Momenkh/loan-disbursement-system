@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seed...');
+  console.log('Starting database seed...');
 
   // --------------------------
   // PLATFORM ACCOUNTS
@@ -70,7 +70,7 @@ async function main() {
   });
   */
 
-  console.log('🌱 Seed completed.');
+  console.log('Seed completed.');
   console.log({
     platformFunds,
     interestIncome,
