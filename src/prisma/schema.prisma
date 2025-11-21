@@ -7,19 +7,79 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------- ENUMS ----------
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  CLOSED
+  DEFAULTED
+}
+
+enum DisbursementStatus {
+  PENDING
+  COMPLETED
+  ROLLED_BACK
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ROLLED_BACK
+}
+
+enum ScheduleStatus {
+  PENDING
+  PAID
+  LATE
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+enum TransactionType {
+  DISBURSEMENT
+  PAYMENT
+  ROLLBACK
+  FEE
+  INTEREST
+}
+
+// ---------- MODELS ----------
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  role      UserRole @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+
 model Loan {
   id           String              @id @default(uuid())
   amount       Decimal             @db.Decimal(15, 2)
   interestRate Decimal             @map("interest_rate") @db.Decimal(5, 2)
   tenor        Int
-  status       String              @db.VarChar(20)
+  status       LoanStatus
   createdAt    DateTime            @default(now()) @map("created_at")
   updatedAt    DateTime            @updatedAt @map("updated_at")
   clientId     String              @map("client_id")
+
   disbursement Disbursement?
   client       Client              @relation(fields: [clientId], references: [id])
   payments     Payment[]
   schedules    RepaymentSchedule[]
+  ledgerEntries LedgerEntry[]
 
   @@index([clientId])
   @@map("loans")
@@ -30,10 +90,12 @@ model Disbursement {
   loanId           String    @unique @map("loan_id")
   amount           Decimal   @db.Decimal(15, 2)
   disbursementDate DateTime  @map("disbursement_date")
-  status           String    @db.VarChar(20)
+  status           DisbursementStatus
   rolledBackAt     DateTime? @map("rolled_back_at")
   createdAt        DateTime  @default(now()) @map("created_at")
+
   loan             Loan      @relation(fields: [loanId], references: [id])
+  rollbackRecords  RollbackRecord[]
 
   @@map("disbursements")
 }
@@ -45,10 +107,12 @@ model RepaymentSchedule {
   dueDate           DateTime  @map("due_date") @db.Date
   principalAmount   Decimal   @map("principal_amount") @db.Decimal(15, 2)
   interestAmount    Decimal   @map("interest_amount") @db.Decimal(15, 2)
-  status            String    @db.VarChar(20)
+  status            ScheduleStatus
   paidDate          DateTime? @map("paid_date")
   createdAt         DateTime  @default(now()) @map("created_at")
+
   loan              Loan      @relation(fields: [loanId], references: [id])
+  payments          Payment[]
 
   @@map("repayment_schedules")
 }
@@ -62,10 +126,15 @@ model Payment {
   interestPaid  Decimal   @map("interest_paid") @db.Decimal(15, 2)
   lateFeePaid   Decimal   @map("late_fee_paid") @db.Decimal(15, 2)
   daysLate      Int       @map("days_late")
-  status        String    @db.VarChar(20)
+  status        PaymentStatus
   rolledBackAt  DateTime? @map("rolled_back_at")
   createdAt     DateTime  @default(now()) @map("created_at")
+
+  scheduleId    String?   @map("schedule_id")
+
   loan          Loan      @relation(fields: [loanId], references: [id])
+  schedule      RepaymentSchedule? @relation(fields: [scheduleId], references: [id])
+  rollbackRecord RollbackRecord?
 
   @@index([loanId])
   @@index([paymentDate])
@@ -74,15 +143,22 @@ model Payment {
 
 model AuditLog {
   id            String   @id @default(uuid())
-  transactionId String   @map("transaction_id")
+  transactionId String   @unique @map("transaction_id")
+
   operation     String   @db.VarChar(50)
   userId        String?  @map("user_id")
   metadata      Json?
   createdAt     DateTime @default(now()) @map("created_at")
 
+  ledgerEntry   LedgerEntry @relation(fields: [transactionId], references: [id])
+  user          User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([operation])
   @@index([transactionId])
   @@map("audit_logs")
 }
+
 
 model RollbackRecord {
   id                  String   @id @default(uuid())
@@ -93,35 +169,48 @@ model RollbackRecord {
   rolledBackBy        String?  @map("rolled_back_by")
   createdAt           DateTime @default(now()) @map("created_at")
 
+  disbursementId      String?  @map("disbursement_id")
+  paymentId           String?  @unique @map("payment_id")
+
+  disbursement        Disbursement? @relation(fields: [disbursementId], references: [id])
+  payment             Payment?      @relation(fields: [paymentId], references: [id])
+
   @@map("rollback_records")
 }
 
 model Account {
-  id            String        @id @default(uuid())
-  name          String        @unique
+  id            String   @id @default(uuid())
+  name          String   @unique
   type          String
-  userId        String?       @map("user_id")
-  balance       Decimal       @db.Decimal(15, 2)
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  ledgerEntries LedgerEntry[] @relation("AccountToLedgerEntry")
+  balance       Decimal  @db.Decimal(15, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  creditLedgerEntries LedgerEntry[] @relation("CreditAccountRelation")
+  debitLedgerEntries LedgerEntry[] @relation("DebitAccountRelation")
 
   @@index([type])
-  @@index([userId])
   @@map("accounts")
 }
 
 model LedgerEntry {
   id            String    @id @default(uuid())
-  transactionId String    @map("transaction_id")
+  transactionType TransactionType @map("transaction_type")
   amount        Decimal   @db.Decimal(15, 2)
   createdAt     DateTime  @default(now()) @map("created_at")
-  creditAccount String    @map("credit_account")
-  debitAccount  String    @map("debit_account")
-  accounts      Account[] @relation("AccountToLedgerEntry")
 
-  @@index([debitAccount])
-  @@index([creditAccount])
+  creditAccountId String?   @map("credit_account_id")
+  debitAccountId  String?   @map("debit_account_id")
+  creditAccount   Account? @relation("CreditAccountRelation", fields: [creditAccountId], references: [id])
+  debitAccount    Account? @relation("DebitAccountRelation", fields: [debitAccountId], references: [id])
+
+  loanId        String?   @map("loan_id")
+  loan          Loan?     @relation(fields: [loanId], references: [id])
+
+  auditLog      AuditLog? 
+
+  @@index([creditAccountId])
+  @@index([debitAccountId])
   @@map("ledger_entries")
 }
 

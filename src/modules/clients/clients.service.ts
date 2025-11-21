@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { UpdateKycDto } from './dto/update-kyc.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class ClientsService {
-  private prisma = new PrismaClient();
+
+constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateClientDto) {
     return this.prisma.client.create({ data: dto });

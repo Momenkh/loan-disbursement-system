@@ -1,48 +1,62 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { CreateLedgerEntryDto } from './dto/create-ledger-entry.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class LedgerService {
-  private prisma = new PrismaClient();
+
+  constructor(private prisma: PrismaService, private readonly auditService: AuditService) {}
+
   private logger = new Logger(LedgerService.name);
 
   async createLedgerEntry(dto: CreateLedgerEntryDto) {
-    // Ensure debit ≠ credit
-    if (dto.debitAccount === dto.creditAccount) {
+    // Ensure debit is not the credit
+    if (dto.debitAccountId === dto.creditAccountId) {
       throw new Error('Debit and credit accounts must differ');
     }
 
     const entry = await this.prisma.ledgerEntry.create({
       data: {
-        transactionId: dto.transactionId,
-        debitAccount: dto.debitAccount,
-        creditAccount: dto.creditAccount,
+        transactionType: dto.transactionType,
+        debitAccountId: dto.debitAccountId,
+        creditAccountId: dto.creditAccountId,
         amount: +dto.amount.toFixed(2),
       },
     });
 
+    await this.auditService.logTransaction(
+      entry.id,                         // real transaction ID
+      'ledger_entry_created',           // operation
+      'ay had for now',                 // optional user
+      {
+        transactionType: dto.transactionType,
+        debitAccountId: dto.debitAccountId,
+        creditAccountId: dto.creditAccountId,
+        amount: dto.amount,
+      },
+    );
+    
     this.logger.log({
       message: 'Ledger entry created',
-      transactionId: dto.transactionId,
-      debit: dto.debitAccount,
-      credit: dto.creditAccount,
+      transactionType: dto.transactionType,
+      debitAccountId: dto.debitAccountId,
+      creditAccountId: dto.creditAccountId,
       amount: dto.amount,
     });
 
     return entry;
   }
 
-  // Optional: get account balance
   async getAccountBalance(accountName: string) {
     const debitSum = await this.prisma.ledgerEntry.aggregate({
       _sum: { amount: true },
-      where: { debitAccount: accountName },
+      where: { debitAccountId: accountName },
     });
 
     const creditSum = await this.prisma.ledgerEntry.aggregate({
       _sum: { amount: true },
-      where: { creditAccount: accountName },
+      where: { creditAccountId: accountName },
     });
 
     const balance = (Number(debitSum._sum.amount || 0) - Number(creditSum._sum.amount || 0));

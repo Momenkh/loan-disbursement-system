@@ -1,18 +1,19 @@
-import { IsString, IsNumber, Min } from 'class-validator';
+import { IsString, IsNumber, Min, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { TransactionType } from '@prisma/client';
 
 export class CreateLedgerEntryDto {
-  @ApiProperty({ example: 'tx_12345', description: 'Unique transaction id' })
-  @IsString()
-  transactionId: string;
+  @ApiProperty({ example: 'DISBURSEMENT', description: 'Type of the transaction' })
+  @IsEnum(TransactionType)
+  transactionType: TransactionType;
 
   @ApiProperty({ example: 'cash_account', description: 'Debit account name' })
   @IsString()
-  debitAccount: string;
+  debitAccountId: string;
 
   @ApiProperty({ example: 'revenue_account', description: 'Credit account name' })
   @IsString()
-  creditAccount: string;
+  creditAccountId: string;
 
   @ApiProperty({ example: 100.5, description: 'Amount for the ledger entry' })
   @IsNumber()

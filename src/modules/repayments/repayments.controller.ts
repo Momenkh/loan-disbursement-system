@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 import { CreateRepaymentDto } from './dto/create-repayment.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -22,7 +22,7 @@ export class RepaymentsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('staff', 'system')
+  @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'Create a repayment' })
   @ApiCreatedResponse({ description: 'Repayment created', type: CreateRepaymentDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })
@@ -30,5 +30,29 @@ export class RepaymentsController {
   @ApiBody({ type: CreateRepaymentDto })
   async create(@Body() dto: CreateRepaymentDto) {
     return this.service.createRepayment(dto);
+  }
+
+  @Get(':loanId/history')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STAFF', 'ADMIN')
+  @ApiOperation({ summary: 'Get payment history for a loan' })
+  async history(@Param('loanId') loanId: string) {
+    return this.service.getPaymentHistory(loanId);
+  }
+
+  @Get(':loanId/schedule')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STAFF', 'ADMIN')
+  @ApiOperation({ summary: 'Get repayment schedule for a loan' })
+  async schedule(@Param('loanId') loanId: string) {
+    return this.service.getRepaymentSchedule(loanId);
+  }
+
+  @Get(':loanId/calculate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('STAFF', 'ADMIN')
+  @ApiOperation({ summary: 'Calculate current dues for a loan' })
+  async calculate(@Param('loanId') loanId: string) {
+    return this.service.calculateCurrentDues(loanId);
   }
 }

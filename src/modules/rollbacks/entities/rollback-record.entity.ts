@@ -3,7 +3,7 @@ export class RollbackRecordEntity {
   transactionId: string;
   originalOperation: 'disbursement' | 'repayment';
   rollbackReason: string;
-  compensatingActions: any[]; // ledger / reverse entries
+  compensatingActions: any[];
   rolledBackBy: string;
   createdAt: Date;
 }

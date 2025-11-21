@@ -1,47 +1,20 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AuditModule } from './modules/audit/audit.module';
-import { JwtModule } from './common/utils/jwt.module';
-
-import { ClientsController } from './modules/clients/clients.controller';
-import { ClientsService } from './modules/clients/clients.service';
-
-import { DisbursementsController } from './modules/disbursements/disbursements.controller';
-import { DisbursementsService } from './modules/disbursements/disbursements.service';
-
-import { LoansController } from './modules/loans/loans.controller';
-import { LoansService } from './modules/loans/loans.service';
-
-import { LedgerController } from './modules/ledger/ledger.controller';
-import { LedgerService } from './modules/ledger/ledger.service';
-
-import { RepaymentsController } from './modules/repayments/repayments.controller';
-import { RepaymentsService } from './modules/repayments/repayments.service';
-
-import { RollbacksController } from './modules/rollbacks/rollbacks.controller';
-import { RollbacksService } from './modules/rollbacks/rollbacks.service';
+import { AuthModule } from './modules/auth/auth.module';
+import { LoansModule } from './modules/loans/loans.module';
+import { RepaymentsModule } from './modules/repayments/repayments-module';
+import { RollbacksModule } from './modules/rollbacks/rollbacks.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { DisbursementsModule } from './modules/disbursements/disbursements.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { HealthController } from './modules/health/health.controller';
+import { HealthService } from './modules/health/health.service';
 
 @Module({
-  imports: [AuditModule, JwtModule],
-  controllers: [
-    AppController,
-    ClientsController,
-    DisbursementsController,
-    LoansController,
-    LedgerController,
-    RepaymentsController,
-    RollbacksController,
-  ],
-  providers: [
-    AppService,
-    ClientsService,
-    DisbursementsService,
-    LoansService,
-    LedgerService,
-    RepaymentsService,
-    RollbacksService,
-  ],
+  imports: [PrismaModule, AuditModule, AuthModule, LoansModule, RepaymentsModule, RollbacksModule, ClientsModule, DisbursementsModule, LedgerModule],
+  controllers: [HealthController],
+  providers: [HealthService],
   exports: [],
 })
 export class AppModule {}

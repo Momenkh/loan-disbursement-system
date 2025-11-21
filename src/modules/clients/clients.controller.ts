@@ -14,7 +14,6 @@ import {
   ApiOkResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiBody,
   ApiParam,
@@ -28,7 +27,7 @@ export class ClientsController {
   constructor(private readonly service: ClientsService) {}
 
   @Post()
-  @Roles('staff', 'admin')
+  @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'Create a client' })
   @ApiCreatedResponse({ description: 'Client created', type: CreateClientDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })
@@ -39,15 +38,16 @@ export class ClientsController {
   }
 
   @Get()
-  @Roles('staff', 'admin')
+  @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'List clients' })
   @ApiOkResponse({ description: 'List returned' })
   findAll() {
+    console.log('Fetching all clients');
     return this.service.findAll();
   }
 
   @Get(':id')
-  @Roles('staff', 'admin')
+  @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'Get client by id' })
   @ApiOkResponse({ description: 'Client returned' })
   @ApiNotFoundResponse({ description: 'Client not found' })
@@ -57,7 +57,7 @@ export class ClientsController {
   }
 
   @Patch(':id')
-  @Roles('staff', 'admin')
+  @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'Update client' })
   @ApiOkResponse({ description: 'Client updated' })
   @ApiBadRequestResponse({ description: 'Invalid input' })
@@ -67,7 +67,7 @@ export class ClientsController {
   }
 
   @Patch(':id/kyc')
-  @Roles('admin', 'system') // Only higher roles can change KYC status
+  @Roles('ADMIN') 
   @ApiOperation({ summary: 'Update client KYC status' })
   @ApiOkResponse({ description: 'KYC updated' })
   @ApiBadRequestResponse({ description: 'Invalid input' })
@@ -77,7 +77,7 @@ export class ClientsController {
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Delete client' })
   @ApiOkResponse({ description: 'Client deleted' })
   @ApiNotFoundResponse({ description: 'Client not found' })

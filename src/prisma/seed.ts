@@ -1,259 +1,462 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import { env } from 'process';
+// import { PrismaClient } from '@prisma/client';
+// const prisma = new PrismaClient();
 
-/**
- * Comprehensive idempotent seed for the loan-disbursement app.
- * Creates:
- * - a sample client
- * - platform & user accounts
- * - a loan (approved)
- * - a disbursement for that loan
- * - repayment schedule (if not present)
- * - a sample payment for the first installment
- * - ledger entries for disbursement and repayment
- * - audit logs and a sample rollback record
- *
- * Usage (development):
- *   NODE_ENV=development npx ts-node --transpile-only src/prisma/seed.ts
- * To run in production you MUST set FORCE_SEED=true
- */
+// async function main() {
+//   // ---------- Create Clients ----------
+//   const clients = [] as any[];
+//   clients.push(await prisma.client.create({ data: { name: 'Ali Ahmed', email: 'ali@example.com', phoneNumber: '+201234567890', kycStatus: 'approved', riskScore: 5 } }));
+//   clients.push(await prisma.client.create({ data: { name: 'Sara Mohamed', email: 'sara@example.com', phoneNumber: '+201987654321', kycStatus: 'pending', riskScore: 7 } }));
+//   clients.push(await prisma.client.create({ data: { name: 'Omar Khaled', email: 'omar@example.com', phoneNumber: '+201122334455', kycStatus: 'approved', riskScore: 9 } }));
+//   clients.push(await prisma.client.create({ data: { name: 'Mona Ali', email: 'mona@example.com', phoneNumber: '+201144556677', kycStatus: 'rejected', riskScore: 3 } }));
 
+//   // ---------- Create Loans ----------
+//   const loans = [] as any[];
+//   loans.push(await prisma.loan.create({ data: { amount: 10000.00, interestRate: 12.5, tenor: 12, status: 'ACTIVE', clientId: clients[0].id } }));
+//   loans.push(await prisma.loan.create({ data: { amount: 5000.00, interestRate: 10.0, tenor: 6, status: 'PENDING', clientId: clients[1].id } }));
+//   loans.push(await prisma.loan.create({ data: { amount: 8000.00, interestRate: 15.0, tenor: 8, status: 'CLOSED', clientId: clients[2].id } }));
+//   loans.push(await prisma.loan.create({ data: { amount: 12000.00, interestRate: 8.0, tenor: 10, status: 'DEFAULTED', clientId: clients[3].id } }));
+
+//   // ---------- Create Disbursements ----------
+//   const disbursements = [] as any[];
+//   for (const loan of loans) {
+//     disbursements.push(await prisma.disbursement.create({ data: { loanId: loan.id, amount: loan.amount, disbursementDate: new Date(), status: 'COMPLETED' } }));
+//   }
+
+//   // ---------- Create Accounts ----------
+//   const cashAccount = await prisma.account.create({ data: { name: 'Cash Account', type: 'ASSET', balance: 50000.00 } });
+//   const feesAccount = await prisma.account.create({ data: { name: 'Fees Income', type: 'INCOME', balance: 0.00 } });
+//   const interestAccount = await prisma.account.create({ data: { name: 'Interest Income', type: 'INCOME', balance: 0.00 } });
+//   const paymentGatewayAccount = await prisma.account.create({ data: { name: 'Cash Payments', type: 'ASSET', balance: 0.00 } });
+
+//   // ---------- Create Ledger Entries ----------
+//   for (const [index, loan] of loans.entries()) {
+//     await prisma.ledgerEntry.create({
+//       data: {
+//         transactionId: `DISBURSEMENT_LOAN${index+1}`,
+//         amount: loan.amount,
+//         creditAccountId: interestAccount.id,
+//         debitAccountId: cashAccount.id,
+//         loanId: loan.id
+//       }
+//     });
+//   }
+
+//   // ---------- Create Repayment Schedules ----------
+//   for (const loan of loans) {
+//     const months = loan.tenor;
+//     for (let i = 1; i <= months; i++) {
+//       await prisma.repaymentSchedule.create({
+//         data: {
+//           loanId: loan.id,
+//           installmentNumber: i,
+//           dueDate: new Date(new Date().setMonth(new Date().getMonth() + i)),
+//           principalAmount: Number((loan.amount / months).toFixed(2)),
+//           interestAmount: Number(((loan.amount * (loan.interestRate/100)) / months).toFixed(2)),
+//           status: 'PENDING'
+//         }
+//       });
+//     }
+//   }
+
+//   // ---------- Create Payments ----------
+//   for (const loan of loans) {
+//     const schedule = await prisma.repaymentSchedule.findFirst({ where: { loanId: loan.id } });
+//     if (schedule) {
+//       await prisma.payment.create({
+//         data: {
+//           loanId: loan.id,
+//           amount: Number(schedule.principalAmount) + Number(schedule.interestAmount),
+//           principalPaid: schedule.principalAmount,
+//           interestPaid: schedule.interestAmount,
+//           lateFeePaid: 0,
+//           daysLate: 0,
+//           paymentDate: new Date(),
+//           status: 'SUCCESS',
+//           scheduleId: schedule.id
+//         }
+//       });
+//     }
+//   }
+
+//   // ---------- Create Rollback Records ----------
+//   await prisma.rollbackRecord.create({
+//     data: {
+//       transactionId: 'ROLLBACK1',
+//       originalOperation: 'DISBURSEMENT',
+//       rollbackReason: 'Test rollback',
+//       compensatingActions: { note: 'Compensate for rollback' },
+//       disbursementId: disbursements[0].id
+//     }
+//   });
+
+//   // ---------- Create Audit Logs ----------
+//   for (const loan of loans) {
+//     await prisma.auditLog.create({
+//       data: {
+//         transactionId: `AUDIT_LOAN_${loan.id}`,
+//         operation: 'LOAN_CREATION',
+//         metadata: { amount: loan.amount, tenor: loan.tenor },
+//         userId: null
+//       }
+//     });
+//   }
+
+//   console.log('✅ Full seed data created successfully');
+// }
+
+// main()
+//   .catch(e => { console.error(e); process.exit(1); })
+//   .finally(async () => { await prisma.$disconnect(); });
+
+import { PrismaClient, LoanStatus, DisbursementStatus, PaymentStatus, ScheduleStatus, UserRole, TransactionType } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  if (process.env.NODE_ENV === 'production' && process.env.FORCE_SEED !== 'true') {
-    throw new Error('Seeding in production is disabled. Set FORCE_SEED=true to override.');
+  console.log("🌱 Seeding database...");
+
+  // ----------------------------------------------------
+  // ACCOUNTS (for ledger)
+  // ----------------------------------------------------
+  const [cash, loanReceivable, interestRevenue, lateFeeRevenue] =
+    await Promise.all([
+      prisma.account.create({ data: { name: "Cash Account", type: "asset", balance: 100000 } }),
+      prisma.account.create({ data: { name: "Loan Receivable", type: "asset", balance: 0 } }),
+      prisma.account.create({ data: { name: "Interest Revenue", type: "income", balance: 0 } }),
+      prisma.account.create({ data: { name: "Late Fee Revenue", type: "income", balance: 0 } })
+    ]);
+
+  // ----------------------------------------------------
+  // USERS
+  // ----------------------------------------------------
+  const admin = await prisma.user.create({
+    data: {
+      username: "admin",
+      password: "hashed-password-admin",
+      role: UserRole.ADMIN
+    }
+  });
+
+  const staff = await prisma.user.create({
+    data: {
+      username: "staff",
+      password: "hashed-password-staff",
+      role: UserRole.STAFF
+    }
+  });
+
+  // ----------------------------------------------------
+  // CLIENTS
+  // ----------------------------------------------------
+  const clientA = await prisma.client.create({
+    data: {
+      name: "Ahmed Ali",
+      email: "ahmed@example.com",
+      phoneNumber: "01012345678",
+      kycStatus: "verified",
+      riskScore: 80
+    }
+  });
+
+  const clientB = await prisma.client.create({
+    data: {
+      name: "Sara Mohamed",
+      email: "sara@example.com",
+      phoneNumber: "01087654321",
+      kycStatus: "pending",
+      riskScore: 55
+    }
+  });
+
+  const now = new Date();
+
+  // ----------------------------------------------------
+  // LOANS — Creating scenarios for every loan status
+  // ----------------------------------------------------
+
+  // 1. PENDING LOAN (no disbursement)
+  const loanPending = await prisma.loan.create({
+    data: {
+      amount: 5000,
+      interestRate: 10,
+      tenor: 6,
+      status: LoanStatus.PENDING,
+      clientId: clientA.id
+    }
+  });
+
+  // 2. REJECTED LOAN
+  const loanRejected = await prisma.loan.create({
+    data: {
+      amount: 10000,
+      interestRate: 12,
+      tenor: 12,
+      status: LoanStatus.REJECTED,
+      clientId: clientB.id
+    }
+  });
+
+  // 3. APPROVED loan (no disbursement yet)
+  const loanApproved = await prisma.loan.create({
+    data: {
+      amount: 8000,
+      interestRate: 12,
+      tenor: 8,
+      status: LoanStatus.APPROVED,
+      clientId: clientA.id
+    }
+  });
+
+  // 4. ACTIVE loan — completed disbursement, schedules, some paid
+  const loanActive = await prisma.loan.create({
+    data: {
+      amount: 20000,
+      interestRate: 14,
+      tenor: 12,
+      status: LoanStatus.ACTIVE,
+      clientId: clientA.id
+    }
+  });
+
+  // 5. CLOSED loan
+  const loanClosed = await prisma.loan.create({
+    data: {
+      amount: 15000,
+      interestRate: 10,
+      tenor: 6,
+      status: LoanStatus.CLOSED,
+      clientId: clientB.id
+    }
+  });
+
+  // 6. DEFAULTED loan
+  const loanDefaulted = await prisma.loan.create({
+    data: {
+      amount: 12000,
+      interestRate: 16,
+      tenor: 10,
+      status: LoanStatus.DEFAULTED,
+      clientId: clientA.id
+    }
+  });
+
+  // ----------------------------------------------------
+  // DISBURSEMENTS (active, closed, defaulted)
+  // ----------------------------------------------------
+
+  const disbActive = await prisma.disbursement.create({
+    data: {
+      loanId: loanActive.id,
+      amount: 20000,
+      disbursementDate: new Date("2024-01-15"),
+      status: DisbursementStatus.COMPLETED
+    }
+  });
+
+  const disbClosed = await prisma.disbursement.create({
+    data: {
+      loanId: loanClosed.id,
+      amount: 15000,
+      disbursementDate: new Date("2023-03-10"),
+      status: DisbursementStatus.COMPLETED
+    }
+  });
+
+  const disbDefaulted = await prisma.disbursement.create({
+    data: {
+      loanId: loanDefaulted.id,
+      amount: 12000,
+      disbursementDate: new Date("2023-08-01"),
+      status: DisbursementStatus.COMPLETED
+    }
+  });
+
+  // ----------------------------------------------------
+  // ROLLED-BACK DISBURSEMENT example
+  // ----------------------------------------------------
+  const loanRollback = await prisma.loan.create({
+    data: {
+      amount: 7000,
+      interestRate: 14,
+      tenor: 4,
+      status: LoanStatus.REJECTED,
+      clientId: clientB.id
+    }
+  });
+
+  const disbRollback = await prisma.disbursement.create({
+    data: {
+      loanId: loanRollback.id,
+      amount: 7000,
+      disbursementDate: new Date("2024-02-10"),
+      status: DisbursementStatus.ROLLED_BACK,
+      rolledBackAt: new Date("2024-02-11")
+    }
+  });
+
+  await prisma.rollbackRecord.create({
+    data: {
+      transactionId: `rollback-${Date.now()}`,
+      originalOperation: "DISBURSEMENT",
+      rollbackReason: "Fraud detection",
+      compensatingActions: { reversed: true },
+      disbursementId: disbRollback.id
+    }
+  });
+
+  // ----------------------------------------------------
+  // REPAYMENT SCHEDULES + PAYMENTS (for active, closed, defaulted)
+  // ----------------------------------------------------
+
+  async function generateSchedules(loanId: string, start: Date, count: number) {
+    const schedules = [] as any[];
+    for (let i = 1; i <= count; i++) {
+      schedules.push(
+        prisma.repaymentSchedule.create({
+          data: {
+            loanId,
+            installmentNumber: i,
+            dueDate: new Date(start.getFullYear(), start.getMonth() + i, 5),
+            principalAmount: 1000,
+            interestAmount: 150,
+            status: ScheduleStatus.PENDING
+          }
+        })
+      );
+    }
+    return Promise.all(schedules);
   }
 
-  // Helpful constants (fixed ids to make seeding idempotent)
-  const CLIENT_ID = 'seed-client-1';
-  const LOAN_ID = 'seed-loan-1';
-  const PAYMENT_ID = 'seed-payment-1';
-  const PLATFORM_ACCOUNT = 'PLATFORM_FUNDS';
-  const USER_ACCOUNT = `USER_BALANCE_${CLIENT_ID}`;
-  const DISBURSEMENT_TXN = 'txn-disb-seed';
-  const REPAYMENT_TXN = 'txn-repay-seed-1';
-  const ROLLBACK_TXN = 'rollback-seed-1';
+  const activeSchedules = await generateSchedules(loanActive.id, new Date("2024-01-01"), 12);
+  const closedSchedules = await generateSchedules(loanClosed.id, new Date("2023-03-01"), 6);
+  const defaultSchedules = await generateSchedules(loanDefaulted.id, new Date("2023-08-01"), 10);
 
-  try {
-    // 1) Create client
-    const client = await prisma.client.upsert({
-      where: { email: 'jane.doe+seed@example.com' },
-      create: {
-        id: CLIENT_ID,
-        name: 'Jane Doe',
-        email: 'jane.doe+seed@example.com',
-        phoneNumber: '+10000000000',
-        kycStatus: 'verified',
-        riskScore: 42,
-      },
-      update: {
-        name: 'Jane Doe',
-        phoneNumber: '+10000000000',
-        kycStatus: 'verified',
-        riskScore: 42,
-      },
-    });
+  // ----------------------------------------------------
+  // PAYMENTS SCENARIOS
+  // ----------------------------------------------------
 
-    console.log('Client ready:', client.id);
+  // ACTIVE: some paid, some late, some future
+  await prisma.payment.create({
+    data: {
+      loanId: loanActive.id,
+      amount: 1150,
+      paymentDate: new Date("2024-02-06"),
+      principalPaid: 1000,
+      interestPaid: 150,
+      lateFeePaid: 0,
+      daysLate: 1,
+      status: PaymentStatus.SUCCESS,
+      scheduleId: activeSchedules[1].id
+    }
+  });
 
-    // 2) Create platform & user accounts (idempotent via unique name)
-    await prisma.account.upsert({
-      where: { name: PLATFORM_ACCOUNT },
-      create: { name: PLATFORM_ACCOUNT, type: 'system', balance: new Prisma.Decimal(1000000) },
-      update: { type: 'system' },
-    });
+  // ACTIVE: late payment
+  await prisma.payment.create({
+    data: {
+      loanId: loanActive.id,
+      amount: 1200,
+      paymentDate: new Date("2024-03-20"),
+      principalPaid: 1000,
+      interestPaid: 150,
+      lateFeePaid: 50,
+      daysLate: 10,
+      status: PaymentStatus.SUCCESS,
+      scheduleId: activeSchedules[2].id
+    }
+  });
 
-    await prisma.account.upsert({
-      where: { name: USER_ACCOUNT },
-      create: { name: USER_ACCOUNT, type: 'user', userId: client.id, balance: new Prisma.Decimal(0) },
-      update: { userId: client.id },
-    });
-
-    console.log('Accounts ensured.');
-
-    // 3) Create loan (use fixed id for idempotency)
-    const loanAmount = new Prisma.Decimal(5000);
-    const interestRate = new Prisma.Decimal(12.5);
-    const tenor = 12; // months
-
-    await prisma.loan.upsert({
-      where: { id: LOAN_ID },
-      create: {
-        id: LOAN_ID,
-        clientId: client.id,
-        amount: loanAmount,
-        interestRate: interestRate,
-        tenor,
-        status: 'approved',
-      },
-      update: {
-        amount: loanAmount,
-        interestRate: interestRate,
-        tenor,
-        status: 'approved',
-      },
-    });
-
-    console.log('Loan ensured:', LOAN_ID);
-
-    // 4) Create disbursement (unique by loanId)
-    const now = new Date();
-    await prisma.disbursement.upsert({
-      where: { loanId: LOAN_ID },
-      create: {
-        loanId: LOAN_ID,
-        amount: loanAmount,
-        disbursementDate: now,
-        status: 'completed',
-      },
-      update: { amount: loanAmount, status: 'completed' },
-    });
-
-    console.log('Disbursement ensured for loan:', LOAN_ID);
-
-    // 5) Ensure repayment schedule exists (create if none)
-    const existingSchedule = await prisma.repaymentSchedule.findFirst({ where: { loanId: LOAN_ID } });
-    if (!existingSchedule) {
-      const principalPerInstallment = loanAmount.div(tenor);
-      const monthlyInterest = loanAmount.mul(interestRate).div(new Prisma.Decimal(100)).div(new Prisma.Decimal(12));
-
-      const scheduleData = Array.from({ length: tenor }).map((_, i) => ({
-        id: undefined as unknown as string, // Prisma will generate id
-        loanId: LOAN_ID,
-        installmentNumber: i + 1,
-        dueDate: new Date(new Date().getFullYear(), new Date().getMonth() + i + 1, 1),
-        principalAmount: principalPerInstallment.toFixed(2),
-        interestAmount: monthlyInterest.toFixed(2),
-        status: 'pending',
-      }));
-
-      // createMany expects object values to match exact types; use create in loop for precision
-      for (const item of scheduleData) {
-        await prisma.repaymentSchedule.create({ data: {
-          loanId: item.loanId,
-          installmentNumber: item.installmentNumber,
-          dueDate: item.dueDate,
-          principalAmount: new Prisma.Decimal(item.principalAmount),
-          interestAmount: new Prisma.Decimal(item.interestAmount),
-          status: item.status,
-        }});
+  // CLOSED: all paid
+  for (const schedule of closedSchedules) {
+    await prisma.payment.create({
+      data: {
+        loanId: loanClosed.id,
+        amount: 1150,
+        paymentDate: new Date(schedule.dueDate.getTime() + 24 * 60 * 60 * 1000),
+        principalPaid: 1000,
+        interestPaid: 150,
+        lateFeePaid: 0,
+        daysLate: 0,
+        status: PaymentStatus.SUCCESS,
+        scheduleId: schedule.id
       }
-
-      console.log('Repayment schedule created (', tenor, 'installments).');
-    } else {
-      console.log('Repayment schedule already present for loan:', LOAN_ID);
-    }
-
-    // 6) Create a sample payment for first installment (idempotent via fixed id)
-    const firstSchedule = await prisma.repaymentSchedule.findFirst({ where: { loanId: LOAN_ID }, orderBy: { installmentNumber: 'asc' } });
-    if (firstSchedule) {
-      const principal = firstSchedule.principalAmount;
-      const interest = firstSchedule.interestAmount;
-      const paymentAmount = principal.add(interest);
-
-      await prisma.payment.upsert({
-        where: { id: PAYMENT_ID },
-        create: {
-          id: PAYMENT_ID,
-          loanId: LOAN_ID,
-          amount: paymentAmount,
-          paymentDate: new Date(),
-          principalPaid: principal,
-          interestPaid: interest,
-          lateFeePaid: new Prisma.Decimal(0),
-          daysLate: 0,
-          status: 'completed',
-        },
-        update: {
-          amount: paymentAmount,
-          principalPaid: principal,
-          interestPaid: interest,
-          status: 'completed',
-        },
-      });
-
-      console.log('Payment ensured:', PAYMENT_ID);
-    }
-
-    // 7) Create ledger entries if not present (disbursement + repayment)
-    const disbExists = await prisma.ledgerEntry.findFirst({ where: { transactionId: DISBURSEMENT_TXN } });
-    if (!disbExists) {
-      await prisma.ledgerEntry.create({ data: {
-        transactionId: DISBURSEMENT_TXN,
-        debitAccount: PLATFORM_ACCOUNT,
-        creditAccount: USER_ACCOUNT,
-        amount: loanAmount,
-      }});
-      // adjust balances (simple, for demo)
-      await prisma.account.update({ where: { name: PLATFORM_ACCOUNT }, data: { balance: { decrement: loanAmount } as any } });
-      await prisma.account.update({ where: { name: USER_ACCOUNT }, data: { balance: loanAmount } });
-      console.log('Ledger entry created for disbursement.');
-    } else {
-      console.log('Disbursement ledger entry already exists.');
-    }
-
-    const repayExists = await prisma.ledgerEntry.findFirst({ where: { transactionId: REPAYMENT_TXN } });
-    if (!repayExists) {
-      const scheduleFirst = await prisma.repaymentSchedule.findFirst({ where: { loanId: LOAN_ID }, orderBy: { installmentNumber: 'asc' } });
-      if (!scheduleFirst) {
-        console.log('No repayment schedule found; skipping repayment ledger entries.');
-      } else {
-        // principal
-        await prisma.ledgerEntry.create({ data: {
-          transactionId: REPAYMENT_TXN,
-          debitAccount: USER_ACCOUNT,
-          creditAccount: PLATFORM_ACCOUNT,
-          amount: scheduleFirst.principalAmount,
-        }});
-        // interest
-        await prisma.ledgerEntry.create({ data: {
-          transactionId: REPAYMENT_TXN,
-          debitAccount: USER_ACCOUNT,
-          creditAccount: 'INCOME_INTEREST',
-          amount: scheduleFirst.interestAmount,
-        }});
-        // update balances simplistic
-        await prisma.account.update({ where: { name: USER_ACCOUNT }, data: { balance: { decrement: scheduleFirst.principalAmount.add(scheduleFirst.interestAmount) } as any } });
-        await prisma.account.update({ where: { name: PLATFORM_ACCOUNT }, data: { balance: { increment: scheduleFirst.principalAmount } as any } });
-        console.log('Ledger entries created for repayment.');
-      }
-    } else {
-      console.log('Repayment ledger entries already exist.');
-    }
-
-    // 8) Audit logs
-    await prisma.auditLog.createMany({ data: [
-      { transactionId: DISBURSEMENT_TXN, operation: 'disbursement.create', userId: client.id, metadata: { loanId: LOAN_ID } as any },
-      { transactionId: REPAYMENT_TXN, operation: 'payment.create', userId: client.id, metadata: { loanId: LOAN_ID } as any },
-    ], skipDuplicates: true });
-    console.log('Audit logs inserted.');
-
-    // 9) Optional: sample rollback record (do not actually alter other records) — idempotent via unique transactionId
-    await prisma.rollbackRecord.upsert({
-      where: { transactionId: ROLLBACK_TXN },
-      create: {
-        transactionId: ROLLBACK_TXN,
-        originalOperation: 'repayment',
-        rollbackReason: 'seed: demo rollback',
-        compensatingActions: { actions: ['ledger_reverse'] },
-        rolledBackBy: 'system:seed',
-      },
-      update: { rollbackReason: 'seed: demo rollback' },
     });
-
-    console.log('Rollback record ensured (demo).');
-
-    console.log('\nSeeding complete — sample client, loan, disbursement, schedule, payment, ledger entries, audit log and rollback created.');
-  } catch (err) {
-    console.error('Seeding failed:', err);
-    throw err;
-  } finally {
-    await prisma.$disconnect();
   }
+
+  // DEFAULTED: missed many, paid few
+  await prisma.payment.create({
+    data: {
+      loanId: loanDefaulted.id,
+      amount: 1150,
+      paymentDate: new Date("2023-09-06"),
+      principalPaid: 1000,
+      interestPaid: 150,
+      lateFeePaid: 0,
+      daysLate: 1,
+      status: PaymentStatus.SUCCESS,
+      scheduleId: defaultSchedules[1].id
+    }
+  });
+
+  await prisma.payment.create({
+    data: {
+      loanId: loanDefaulted.id,
+      amount: 0,
+      paymentDate: new Date("2023-10-10"),
+      principalPaid: 0,
+      interestPaid: 0,
+      lateFeePaid: 0,
+      daysLate: 30,
+      status: PaymentStatus.FAILED,
+      scheduleId: defaultSchedules[2].id
+    }
+  });
+
+  // ----------------------------------------------------
+  // LEDGER ENTRIES for disbursement and payments
+  // ----------------------------------------------------
+
+  await prisma.ledgerEntry.create({
+    data: {
+      transactionType: TransactionType.DISBURSEMENT,
+      amount: 20000,
+      creditAccountId: cash.id,
+      debitAccountId: loanReceivable.id,
+      loanId: loanActive.id
+    }
+  });
+
+  await prisma.ledgerEntry.create({
+    data: {
+      transactionType: TransactionType.DISBURSEMENT,
+      amount: 15000,
+      creditAccountId: cash.id,
+      debitAccountId: loanReceivable.id,
+      loanId: loanClosed.id
+    }
+  });
+
+  // ----------------------------------------------------
+  // AUDIT LOGS
+  // ----------------------------------------------------
+
+  await prisma.auditLog.create({
+    data: {
+      transactionId: `audit-${Date.now()}`,
+      operation: "CREATE_LOAN",
+      userId: admin.id,
+      metadata: { loanId: loanActive.id }
+    }
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      transactionId: `audit-${Date.now() + 1}`,
+      operation: "MAKE_PAYMENT",
+      userId: staff.id,
+      metadata: { loanId: loanActive.id }
+    }
+  });
+
+  console.log("🌱 Seeding completed!");
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main().catch(console.error).finally(() => prisma.$disconnect());

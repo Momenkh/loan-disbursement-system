@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param } from '@nestjs/common';
 import { DisbursementsService } from './disbursements.service';
 import { CreateDisbursementDto } from './dto/create-disbursement.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -22,7 +22,7 @@ export class DisbursementsController {
   constructor(private service: DisbursementsService) {}
 
   @Post()
-  @Roles('staff', 'admin')
+  @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'Create a disbursement' })
   @ApiCreatedResponse({ description: 'Disbursement created', type: CreateDisbursementDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })
@@ -30,5 +30,31 @@ export class DisbursementsController {
   @ApiBody({ type: CreateDisbursementDto })
   create(@Body() dto: CreateDisbursementDto) {
     return this.service.createDisbursement(dto);
+  }
+
+  @Get()
+  @Roles('STAFF', 'ADMIN')
+  @ApiOperation({ summary: 'Get all disbursements' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  findAll() {
+    return this.service.getAllDisbursements();
+  }
+
+  @Get(':id')
+  @Roles('STAFF', 'ADMIN')
+  @ApiOperation({ summary: 'Get disbursement by ID' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  getById(@Param('id') id: string) {
+    return this.service.getDisbursementById(id);
+  }
+
+  @Post(':id/rollback')
+  @Roles('STAFF', 'ADMIN')
+  @ApiOperation({ summary: 'Rollback a disbursement' })
+  @ApiCreatedResponse({ description: 'Disbursement rolled back' })
+  @ApiBadRequestResponse({ description: 'Invalid input' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  rollbackDisbursement(@Param('id') id: string) {
+    return this.service.rollbackDisbursement(id);
   }
 }

@@ -22,7 +22,7 @@ export class RollbacksController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'system')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Rollback a transaction' })
   @ApiCreatedResponse({ description: 'Rollback recorded', type: RollbackTransactionDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })

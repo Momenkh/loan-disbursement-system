@@ -1,35 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class AuditService {
-  private prisma = new PrismaClient();
-  private logger = new Logger(AuditService.name);
+  constructor(private readonly prisma: PrismaService) {}
 
-  async logTransaction(
-    transactionId: string,
-    operation: string,
-    userId?: string,
-    metadata?: any,
-  ) {
-    const log = await this.prisma.auditLog.create({
-      data: {
-        transactionId,
-        operation,
-        userId,
-        metadata,
-      },
-    });
+  async logTransaction(transactionId: string, operation: string, userId?: string, metadata?: any) {
 
-    this.logger.debug({
-      timestamp: new Date().toISOString(),
-      level: 'debug',
-      service: operation,
-      transactionId,
-      userId,
-      metadata,
-    });
-
-    return log;
+    console.log('Logging transaction:', { transactionId, operation, userId, metadata });
+    if(transactionId && metadata){
+      return this.prisma.auditLog.create({
+        data: { transactionId, operation, userId, metadata },
+      });
+    }
+    return null;
   }
 }

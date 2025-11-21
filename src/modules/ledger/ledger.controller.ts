@@ -22,7 +22,7 @@ export class LedgerController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'system', 'staff')
+  @Roles('ADMIN', 'system', 'STAFF')
   @ApiOperation({ summary: 'Create a ledger entry' })
   @ApiCreatedResponse({ description: 'Ledger entry created', type: CreateLedgerEntryDto })
   @ApiBadRequestResponse({ description: 'Invalid input' })

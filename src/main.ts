@@ -1,19 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { AuditInterceptor } from './modules/audit/audit.interceptor';
-import { AuditService } from './modules/audit/audit.service';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable global validation
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
-
-  // Enable global auditing interceptor
-  const auditService = app.get(AuditService);
-  app.useGlobalInterceptors(new AuditInterceptor(auditService));
 
   app.enableCors();
 
