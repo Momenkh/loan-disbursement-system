@@ -7,7 +7,8 @@ export class RepaymentEntity {
   interestPaid: number;
   lateFeePaid: number;
   daysLate: number;
-  status: 'pending' | 'completed' | 'rolled_back';
-  paymentDate: Date;
+  status: 'PENDING' | 'COMPLETED' | 'ROLLED_BACK';
+  paidDate: Date;
   createdAt: Date;
+  payments: RepaymentEntity[]; // optional, can default to []
 }

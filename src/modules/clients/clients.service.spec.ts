@@ -4,9 +4,9 @@ import { CreateClientDto } from './dto/create-client.dto';
 
 describe('ClientsService', () => {
   let service: ClientsService;
-
+    
   beforeEach(() => {
-    service = new ClientsService();
+    service = new ClientsService({} as any);
   });
 
   it('create() should call prisma.client.create and return result', async () => {

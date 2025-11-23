@@ -8,6 +8,11 @@ export class UpdateLoanDto {
   @Min(0)
   amount?: number;
 
+  @ApiPropertyOptional({ example: 12, description: 'Number of installments' })
+  @IsInt()
+  @Min(2)
+  numberOfInstallments?: number;
+
   @ApiPropertyOptional({ example: 12.5, description: 'Updated annual interest rate percentage' })
   @IsOptional()
   @IsNumber()
@@ -20,8 +25,4 @@ export class UpdateLoanDto {
   @Min(1)
   tenor?: number;
 
-  @ApiPropertyOptional({ example: 'personal_loan', description: 'Updated loan product type' })
-  @IsOptional()
-  @IsString()
-  type?: string;
 }

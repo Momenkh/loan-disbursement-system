@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { LoanStatus } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 describe('LoansService', () => {
   let service: LoansService;
@@ -11,7 +12,7 @@ describe('LoansService', () => {
   });
 
   it('create() should call prisma.loan.create and return result', async () => {
-    const dto: CreateLoanDto = { clientId: 'c1', type: 'personal', amount: 1000, interestRate: 10, tenor: 12 };
+    const dto: CreateLoanDto = { clientId: 'c1', numberOfInstallments: 12, amount: 1000, interestRate: new Decimal(10.5), tenor: 12 };
     const created = { id: 'loan1', ...dto, status: LoanStatus.PENDING };
     const mockPrisma: any = { loan: { create: jest.fn().mockResolvedValue(created) } };
     (service as any).prisma = mockPrisma;
@@ -33,14 +34,6 @@ describe('LoansService', () => {
     expect(res).toHaveProperty('id', 'lu1');
   });
 
-  it('submitForApproval should throw when status not PENDING and succeed when PENDING', async () => {
-    (service as any).prisma = { loan: { findUnique: jest.fn().mockResolvedValue({ id: 'l2', status: 'APPROVED' }) } };
-    await expect(service.submitForApproval('l2')).rejects.toBeInstanceOf(BadRequestException);
-
-    (service as any).prisma = { loan: { findUnique: jest.fn().mockResolvedValue({ id: 'l3', status: 'PENDING' }), update: jest.fn().mockResolvedValue({ id: 'l3', status: 'APPROVED' }) } };
-    const out = await service.submitForApproval('l3');
-    expect(out).toHaveProperty('id', 'l3');
-  });
 
   it('approveOrReject should throw when loan not in APPROVED and succeed when APPROVED', async () => {
     (service as any).prisma = { loan: { findUnique: jest.fn().mockResolvedValue({ id: 'l4', status: 'PENDING' }) } };
@@ -61,24 +54,6 @@ describe('LoansService', () => {
     expect(out).toEqual(logs);
   });
 
-  it('submitForApproval should throw BadRequestException when not pending', async () => {
-    const mockPrisma: any = { loan: { findUnique: jest.fn().mockResolvedValue({ id: 'l1', status: LoanStatus.APPROVED }) } };
-    (service as any).prisma = mockPrisma;
-    await expect(service.submitForApproval('l1')).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('submitForApproval should update status when draft', async () => {
-    const mockPrisma: any = {
-      loan: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'l1', status: LoanStatus.PENDING }),
-        update: jest.fn().mockResolvedValue({ id: 'l1', status: LoanStatus.APPROVED }),
-      },
-    };
-    (service as any).prisma = mockPrisma;
-    const res = await service.submitForApproval('l1');
-    expect(mockPrisma.loan.update).toHaveBeenCalledWith({ where: { id: 'l1' }, data: { status: LoanStatus.APPROVED } });
-    expect(res).toEqual({ id: 'l1', status: LoanStatus.APPROVED });
-  });
 
   it('approveOrReject should throw if loan not approved', async () => {
     const mockPrisma: any = { loan: { findUnique: jest.fn().mockResolvedValue({ id: 'l1', status: LoanStatus.PENDING }) } };

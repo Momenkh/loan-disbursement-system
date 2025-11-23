@@ -56,8 +56,8 @@ model User {
   password  String
   role      UserRole @default(STAFF)
   isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   auditLogs AuditLog[]
 
@@ -70,12 +70,13 @@ model Loan {
   amount       Decimal             @db.Decimal(15, 2)
   interestRate Decimal             @map("interest_rate") @db.Decimal(5, 2)
   tenor        Int
+  numberOfInstallments Int         @default(12) @map("number_of_installments")
   status       LoanStatus
   createdAt    DateTime            @default(now()) @map("created_at")
   updatedAt    DateTime            @updatedAt @map("updated_at")
   clientId     String              @map("client_id")
 
-  disbursement Disbursement?
+  disbursements Disbursement[]      
   client       Client              @relation(fields: [clientId], references: [id])
   payments     Payment[]
   schedules    RepaymentSchedule[]
@@ -87,7 +88,7 @@ model Loan {
 
 model Disbursement {
   id               String    @id @default(uuid())
-  loanId           String    @unique @map("loan_id")
+  loanId           String    @map("loan_id")
   amount           Decimal   @db.Decimal(15, 2)
   disbursementDate DateTime  @map("disbursement_date")
   status           DisbursementStatus

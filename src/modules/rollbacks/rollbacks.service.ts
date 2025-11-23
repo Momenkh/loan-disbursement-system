@@ -36,43 +36,12 @@ export class RollbacksService {
 
       if (disbursement && originalOperation === 'disbursement') {
 
-        await this.ledgerService.createLedgerEntry({
-          transactionType: TransactionType.ROLLBACK,
-          debitAccountId: `USER_${disbursement.loanId}`,
-          creditAccountId: 'PLATFORM_FUNDS',
-          amount: Number(disbursement.amount),
-        });
-        compensatingActions.push({ type: 'ledger_reverse', amount: Number(disbursement.amount) });
-
-
         await tx.disbursement.update({
           where: { id: transactionId },
           data: { status: DisbursementStatus.ROLLED_BACK, rolledBackAt: new Date() },
         });
       } else if (payment && originalOperation === 'repayment') {
 
-        await this.ledgerService.createLedgerEntry({
-          transactionType: TransactionType.ROLLBACK,
-          debitAccountId: 'PLATFORM_FUNDS',
-          creditAccountId: `USER_${payment.loanId}`,
-          amount: Number(payment.principalPaid),
-        });
-        if (Number(payment.interestPaid) > 0) {
-          await this.ledgerService.createLedgerEntry({
-            transactionType: TransactionType.ROLLBACK,
-            debitAccountId: 'INCOME_INTEREST',
-            creditAccountId: `USER_${payment.loanId}`,
-            amount: Number(payment.interestPaid),
-          });
-        }
-        if (Number(payment.lateFeePaid) > 0) {
-          await this.ledgerService.createLedgerEntry({
-            transactionType: TransactionType.ROLLBACK,
-            debitAccountId: 'INCOME_LATE_FEES',
-            creditAccountId: `USER_${payment.loanId}`,
-            amount: Number(payment.lateFeePaid),
-          });
-        }
         compensatingActions.push({ type: 'ledger_reverse', paymentId: transactionId });
 
         await tx.payment.update({

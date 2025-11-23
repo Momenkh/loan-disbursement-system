@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, Req } from '@nestjs/common';
 import { DisbursementsService } from './disbursements.service';
 import { CreateDisbursementDto } from './dto/create-disbursement.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -24,12 +24,8 @@ export class DisbursementsController {
   @Post()
   @Roles('STAFF', 'ADMIN')
   @ApiOperation({ summary: 'Create a disbursement' })
-  @ApiCreatedResponse({ description: 'Disbursement created', type: CreateDisbursementDto })
-  @ApiBadRequestResponse({ description: 'Invalid input' })
-  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-  @ApiBody({ type: CreateDisbursementDto })
-  create(@Body() dto: CreateDisbursementDto) {
-    return this.service.createDisbursement(dto);
+  create(@Body() dto: CreateDisbursementDto, @Req() req) {
+    return this.service.createDisbursement(dto, req.user?.username);
   }
 
   @Get()
@@ -54,7 +50,7 @@ export class DisbursementsController {
   @ApiCreatedResponse({ description: 'Disbursement rolled back' })
   @ApiBadRequestResponse({ description: 'Invalid input' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-  rollbackDisbursement(@Param('id') id: string) {
-    return this.service.rollbackDisbursement(id);
+  rollbackDisbursement(@Param('id') id: string, @Req() req) {
+    return this.service.rollbackDisbursement(id, req.user?.username);
   }
 }

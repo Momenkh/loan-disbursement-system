@@ -3,6 +3,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import { TransactionType } from '@prisma/client';
 
 export class CreateLedgerEntryDto {
+
+  @ApiProperty({ example: 'txn_abc123', description: 'Transaction identifier' })
+  @IsString()
+  ledgerEntryId: string;
+
   @ApiProperty({ example: 'DISBURSEMENT', description: 'Type of the transaction' })
   @IsEnum(TransactionType)
   transactionType: TransactionType;
@@ -19,4 +24,8 @@ export class CreateLedgerEntryDto {
   @IsNumber()
   @Min(0)
   amount: number;
+
+  @ApiProperty({ example: 'user_abc123', description: 'User identifier who performed the transaction', required: false })
+  @IsString()
+  userId?: string;
 }

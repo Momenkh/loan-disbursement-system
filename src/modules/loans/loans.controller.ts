@@ -64,15 +64,6 @@ export class LoansController {
     return this.service.update(id, dto);
   }
 
-  @Patch(':id/submit')
-  @Roles('STAFF', 'ADMIN')
-  @ApiOperation({ summary: 'Submit loan for approval' })
-  @ApiOkResponse({ description: 'Loan submitted' })
-  @ApiParam({ name: 'id', description: 'Loan id' })
-  submit(@Param('id') id: string) {
-    return this.service.submitForApproval(id);
-  }
-
   @Patch(':id/approve')
   @Roles('CEO', 'ADMIN')
   @ApiOperation({ summary: 'Approve or reject loan' })
