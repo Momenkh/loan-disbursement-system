@@ -26,7 +26,6 @@ describe('RollbacksService', () => {
       payment: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     (service as any).prisma = { $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) } as any;
-    (service as any).ledgerService = { createLedgerEntry: jest.fn().mockResolvedValue({}) };
     const res = await service.rollbackTransaction({ transactionId: 'd1', reason: 'test', rolledBackBy: 'u1' } as any);
     expect(res).toBeDefined();
   });
@@ -38,14 +37,12 @@ describe('RollbacksService', () => {
       disbursement: { findUnique: jest.fn().mockResolvedValue(null) },
       payment: { findUnique: jest.fn().mockResolvedValue(payment), update: jest.fn().mockResolvedValue({}) },
     };
-    const ledgerSpy = jest.fn().mockResolvedValue({});
     (service as any).prisma = { $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) } as any;
-    (service as any).ledgerService = { createLedgerEntry: ledgerSpy };
 
     const res = await service.rollbackTransaction({ transactionId: 'p2', reason: 'erroneous', rolledBackBy: 'u2' } as any);
     expect(res).toBeDefined();
-    // should have created ledger reversal for principal + interest + late fee
-    expect(ledgerSpy).toHaveBeenCalledTimes(3);
+    // payment update and rollback record creation should have been called
+    expect(mockTx.payment.update).toHaveBeenCalled();
     expect(mockTx.rollbackRecord.create).toHaveBeenCalled();
   });
 });

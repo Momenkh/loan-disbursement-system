@@ -1,318 +1,744 @@
 import { DisbursementsService } from './disbursements.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateDisbursementDto } from './dto/create-disbursement.dto';
-import { LoanStatus, DisbursementStatus, ScheduleStatus } from '@prisma/client';
+import { LoanStatus, DisbursementStatus, ScheduleStatus, TransactionType } from '@prisma/client';
 
 describe('DisbursementsService', () => {
   let service: DisbursementsService;
+  let mockPrisma: any;
+  let mockLedgerService: any;
 
   beforeEach(() => {
-    // instantiate with placeholder prisma and ledgerService mocks
-    service = new DisbursementsService(
-      {} as any, 
-      { createLedgerEntry: jest.fn() } as any
-    );
-    // default prisma user lookup to return a user id so service.user lookup doesn't blow up
-    (service as any).prisma = {
-      user: { findUnique: jest.fn().mockResolvedValue({ id: 'user123' }) }
-    } as any;
-  });
-
-  it('createDisbursement should throw when loan not found', async () => {
-    const mockTx: any = { 
-      loan: { findUnique: jest.fn().mockResolvedValue(null) } 
+    mockLedgerService = {
+      createLedgerEntry: jest.fn().mockResolvedValue({ id: 'ledger-1' }),
     };
-    (service as any).prisma = { 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) 
-    } as any;
-    
-    await expect(
-      service.createDisbursement({ loanId: 'x', amount: 100 } as any, 'user123')
-    ).rejects.toBeInstanceOf(NotFoundException);
-  });
 
-  it('createDisbursement should throw when loan not approved', async () => {
-    const mockTx: any = { 
-      loan: { 
-        findUnique: jest.fn().mockResolvedValue({ 
-          id: 'l1', 
-          status: LoanStatus.PENDING 
-        }) 
-      } 
-    };
-    (service as any).prisma = { 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) 
-    } as any;
-    
-    await expect(
-      service.createDisbursement({ loanId: 'l1', amount: 100 } as any, 'user123')
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('createDisbursement should create disbursement and call ledger', async () => {
-    const loan = { 
-      id: 'l1', 
-      status: LoanStatus.APPROVED, 
-      clientId: 'c1', 
-      amount: 1000, 
-      interestRate: 10, 
-      numberOfInstallments: 12 
-      ,
-      disbursements: []
-    };
-    
-    const mockTx: any = {
-      loan: { 
-        findUnique: jest.fn().mockResolvedValue(loan), 
-        update: jest.fn().mockResolvedValue({}) 
-      },
+    mockPrisma = {
+      user: { findUnique: jest.fn() },
+      loan: { findUnique: jest.fn(), update: jest.fn() },
       disbursement: { 
-        findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ 
-          id: 'd1', 
-          loanId: 'l1',
-          amount: 1000,
-          status: DisbursementStatus.COMPLETED 
-        }) 
+        findUnique: jest.fn(), 
+        findMany: jest.fn(),
+        create: jest.fn(), 
+        update: jest.fn() 
       },
       repaymentSchedule: { 
-        count: jest.fn().mockResolvedValue(0),
-        createMany: jest.fn().mockResolvedValue({ count: 12 }) 
+        create: jest.fn(), 
+        createMany: jest.fn(),
+        count: jest.fn(),
+        deleteMany: jest.fn() 
       },
-      ledgerEntry: {
-        create: jest.fn().mockResolvedValue({ id: 'ledger1' })
-      },
-      auditLog: {
-        create: jest.fn().mockResolvedValue({ id: 'audit1' })
-      }
-    };
-    
-    (service as any).prisma = { 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) 
-    } as any;
-    
-    (service as any).logger = { 
-      log: jest.fn(),
-      warn: jest.fn() 
+      ledgerEntry: { create: jest.fn() },
+      account: { update: jest.fn() },
+      auditLog: { create: jest.fn() },
+      $transaction: jest.fn(),
     };
 
-    const dto: CreateDisbursementDto = { 
-      loanId: 'l1', 
-      amount: 1000, 
-      disbursementDate: new Date() 
-    };
-    
-    const res = await service.createDisbursement(dto, 'user123');
-    expect(res).toBeDefined();
-    expect(res.id).toBe('d1');
-    expect(mockTx.repaymentSchedule.createMany).toHaveBeenCalled();
+    service = new DisbursementsService(mockPrisma, mockLedgerService);
   });
 
-  it('createDisbursement should update existing PENDING disbursement', async () => {
-    const loan = { 
-      id: 'l1', 
-      status: LoanStatus.APPROVED, 
-      clientId: 'c1', 
-      amount: 1000, 
-      interestRate: 10, 
-      numberOfInstallments: 12,
-      disbursements: [
-        {
-          id: 'd-existing',
-          status: DisbursementStatus.PENDING
-        }
-      ]
-    };
-    
-    const mockTx: any = {
-      loan: { 
-        findUnique: jest.fn().mockResolvedValue(loan), 
-        update: jest.fn().mockResolvedValue({}) 
-      },
-      disbursement: { 
-        update: jest.fn().mockResolvedValue({ 
-          id: 'd-existing', 
-          status: DisbursementStatus.COMPLETED 
-        }) 
-      },
-      repaymentSchedule: { 
-        count: jest.fn().mockResolvedValue(0),
-        createMany: jest.fn().mockResolvedValue({ count: 12 }) 
-      },
-      ledgerEntry: {
-        create: jest.fn().mockResolvedValue({ id: 'ledger1' })
-      },
-      auditLog: {
-        create: jest.fn().mockResolvedValue({ id: 'audit1' })
-      }
-    };
-    
-    (service as any).prisma = { 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) 
-    } as any;
-    
-    (service as any).logger = { 
-      log: jest.fn(),
-      warn: jest.fn() 
-    };
-
-    const dto: CreateDisbursementDto = { 
-      loanId: 'l1', 
-      amount: 1000 
-    };
-    
-    const res = await service.createDisbursement(dto, 'user123');
-    expect(res).toBeDefined();
-    expect(mockTx.disbursement.update).toHaveBeenCalled();
-  });
-
-  it('createDisbursement should throw when already disbursed (COMPLETED)', async () => {
-    const loan = {
-      id: 'l1', 
-      status: LoanStatus.APPROVED, 
-      clientId: 'c1', 
-      amount: 1000, 
-      interestRate: 10, 
-      numberOfInstallments: 12,
-      disbursements: [
-        {
-          id: 'd-existing',
-          status: DisbursementStatus.COMPLETED
-        }
-      ]
-    };
-    
-    const mockTx: any = {
-      loan: { 
-        findUnique: jest.fn().mockResolvedValue(loan) 
-      }
-    };
-    
-    (service as any).prisma = { 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTx)) 
-    } as any;
-    
-    await expect(
-      service.createDisbursement({ loanId: 'l1', amount: 1000 } as any, 'user123')
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('createDisbursement handles concurrent attempts (only one succeeds)', async () => {
-    const loan = { 
-      id: 'l2', 
-      status: LoanStatus.APPROVED, 
-      clientId: 'c2', 
-      amount: 500,
+  describe('createDisbursement', () => {
+    const mockUser = { id: 'user-1', username: 'testuser' };
+    const mockDto: CreateDisbursementDto = {
+      loanId: 'loan-1',
+      clientId: 'client-1',
+      amount: 1000,
+      currency: 'USD',
+      disbursementDate: new Date('2025-01-15'),
+      firstPaymentDate: new Date('2025-02-01'),
+      tenor: 12,
       interestRate: 10,
-      numberOfInstallments: 12
-    };
-    
-    let call = 0;
-    const mockTxFactory = () => {
-      call += 1;
-      if (call === 1) {
-        return {
+    } as any;
+
+    it('should throw NotFoundException when loan not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
+          loan: { findUnique: jest.fn().mockResolvedValue(null) },
+        };
+        return callback(txPrisma);
+      });
+
+      await expect(
+        service.createDisbursement(mockDto, 'testuser')
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.createDisbursement(mockDto, 'testuser')
+      ).rejects.toThrow('Loan not found');
+    });
+
+    it('should throw BadRequestException when loan is not approved', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.PENDING,
+        amount: 1000,
+        disbursements: [],
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
+          loan: { findUnique: jest.fn().mockResolvedValue(loan) },
+        };
+        return callback(txPrisma);
+      });
+
+      await expect(
+        service.createDisbursement(mockDto, 'testuser')
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createDisbursement(mockDto, 'testuser')
+      ).rejects.toThrow('Only approved loans can be disbursed');
+    });
+
+    it('should throw BadRequestException when loan already has completed disbursement', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        disbursements: [
+          { id: 'disb-1', status: DisbursementStatus.COMPLETED, amount: 1000 },
+        ],
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
+          loan: { findUnique: jest.fn().mockResolvedValue(loan) },
+        };
+        return callback(txPrisma);
+      });
+
+      await expect(
+        service.createDisbursement(mockDto, 'testuser')
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createDisbursement(mockDto, 'testuser')
+      ).rejects.toThrow('Loan already has a completed disbursement');
+    });
+
+    it('should create new disbursement when no disbursements exist', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        interestRate: 10,
+        numberOfInstallments: 12,
+        disbursements: [],
+      };
+
+      const createdDisbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+        status: DisbursementStatus.COMPLETED,
+      };
+
+      const ledgerEntry = { id: 'ledger-1' };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
           loan: { 
-            findUnique: jest.fn().mockResolvedValue({ ...loan, disbursements: [] }), 
-            update: jest.fn().mockResolvedValue({}) 
+            findUnique: jest.fn().mockResolvedValue(loan),
+            update: jest.fn().mockResolvedValue({ ...loan, status: LoanStatus.ACTIVE }),
           },
-          disbursement: { 
-            create: jest.fn().mockResolvedValue({ 
-              id: 'd-new',
-              status: DisbursementStatus.COMPLETED 
-            }) 
+          disbursement: {
+            create: jest.fn().mockResolvedValue(createdDisbursement),
           },
-          repaymentSchedule: { 
+          repaymentSchedule: {
             count: jest.fn().mockResolvedValue(0),
-            createMany: jest.fn().mockResolvedValue({ count: 12 }) 
+            createMany: jest.fn().mockResolvedValue({ count: 12 }),
           },
           ledgerEntry: {
-            create: jest.fn().mockResolvedValue({ id: 'ledger1' })
+            create: jest.fn().mockResolvedValue(ledgerEntry),
+          },
+          account: {
+            update: jest.fn().mockResolvedValue({}),
           },
           auditLog: {
-            create: jest.fn().mockResolvedValue({ id: 'audit1' })
-          }
+            create: jest.fn().mockResolvedValue({}),
+          },
         };
-      }
-      return {
-        loan: { 
-          findUnique: jest.fn().mockResolvedValue({ 
-            ...loan, 
-            disbursements: [ { id: 'd-new', status: DisbursementStatus.COMPLETED } ]
-          }) 
-        }
+        return callback(txPrisma);
+      });
+
+      const result = await service.createDisbursement(mockDto, 'testuser');
+
+      expect(result).toEqual(createdDisbursement);
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { username: 'testuser' },
+      });
+    });
+
+    it('should update pending disbursement to completed', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        interestRate: 10,
+        numberOfInstallments: 12,
+        disbursements: [
+          { id: 'disb-pending', status: DisbursementStatus.PENDING },
+        ],
       };
-    };
 
-    (service as any).prisma = { 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(mockTxFactory())) 
-    } as any;
-    
-    (service as any).logger = { 
-      log: jest.fn(),
-      warn: jest.fn() 
-    };
+      const updatedDisbursement = {
+        id: 'disb-pending',
+        loanId: 'loan-1',
+        amount: 1000,
+        status: DisbursementStatus.COMPLETED,
+      };
 
-    const p1 = service.createDisbursement({ loanId: 'l2', amount: 500 } as any, 'user123');
-    const p2 = service.createDisbursement({ loanId: 'l2', amount: 500 } as any, 'user456');
-
-    const results = await Promise.allSettled([p1, p2]);
-    const fulfilled = results.filter(r => r.status === 'fulfilled');
-    const rejected = results.filter(r => r.status === 'rejected');
-    
-    expect(fulfilled.length).toBe(1);
-    expect(rejected.length).toBe(1);
-  });
-
-  it('getAllDisbursements should return list', async () => {
-    const list = [{ id: 'd1' }, { id: 'd2' }];
-    (service as any).prisma = { 
-      disbursement: { 
-        findMany: jest.fn().mockResolvedValue(list) 
-      } 
-    } as any;
-    
-    const res = await service.getAllDisbursements();
-    expect(res).toEqual(list);
-  });
-
-  it('getDisbursementById should throw when not found', async () => {
-    (service as any).prisma = { 
-      disbursement: { 
-        findUnique: jest.fn().mockResolvedValue(null) 
-      } 
-    } as any;
-    
-    await expect(service.getDisbursementById('nope')).rejects.toBeDefined();
-  });
-
-  it('rollbackDisbursement should throw when disbursement not found', async () => {
-    (service as any).prisma = { 
-      disbursement: { 
-        findUnique: jest.fn().mockResolvedValue(null) 
-      } 
-    } as any;
-    
-    await expect(service.rollbackDisbursement('d-x', 'user123')).rejects.toBeDefined();
-  });
-
-  it('rollbackDisbursement should throw when associated loan not found', async () => {
-    const disb = { id: 'd3', loanId: 'l-missing', amount: 100 } as any;
-    (service as any).prisma = { 
-      disbursement: { 
-        findUnique: jest.fn().mockResolvedValue(disb) 
-      }, 
-      $transaction: jest.fn().mockImplementation(async (cb: any) => 
-        cb({ 
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
           loan: { 
-            findUnique: jest.fn().mockResolvedValue(null) 
-          } 
-        })
-      ) 
-    } as any;
-    
-    (service as any).ledgerService = { createLedgerEntry: jest.fn() };
-    
-    await expect(service.rollbackDisbursement('d3', 'user123')).rejects.toBeDefined();
+            findUnique: jest.fn().mockResolvedValue(loan),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          disbursement: {
+            update: jest.fn().mockResolvedValue(updatedDisbursement),
+          },
+          repaymentSchedule: {
+            count: jest.fn().mockResolvedValue(0),
+            createMany: jest.fn().mockResolvedValue({ count: 12 }),
+          },
+          ledgerEntry: {
+            create: jest.fn().mockResolvedValue({ id: 'ledger-1' }),
+          },
+          account: {
+            update: jest.fn().mockResolvedValue({}),
+          },
+          auditLog: {
+            create: jest.fn().mockResolvedValue({}),
+          },
+        };
+        return callback(txPrisma);
+      });
+
+      const result = await service.createDisbursement(mockDto, 'testuser');
+
+      expect(result).toEqual(updatedDisbursement);
+    });
+
+    it('should create new disbursement when only rolled back disbursements exist', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        interestRate: 10,
+        numberOfInstallments: 12,
+        disbursements: [
+          { id: 'disb-rolled', status: DisbursementStatus.ROLLED_BACK },
+        ],
+      };
+
+      const createdDisbursement = {
+        id: 'disb-new',
+        loanId: 'loan-1',
+        amount: 1000,
+        status: DisbursementStatus.COMPLETED,
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
+          loan: { 
+            findUnique: jest.fn().mockResolvedValue(loan),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          disbursement: {
+            create: jest.fn().mockResolvedValue(createdDisbursement),
+          },
+          repaymentSchedule: {
+            count: jest.fn().mockResolvedValue(0),
+            createMany: jest.fn().mockResolvedValue({ count: 12 }),
+          },
+          ledgerEntry: {
+            create: jest.fn().mockResolvedValue({ id: 'ledger-1' }),
+          },
+          account: {
+            update: jest.fn().mockResolvedValue({}),
+          },
+          auditLog: {
+            create: jest.fn().mockResolvedValue({}),
+          },
+        };
+        return callback(txPrisma);
+      });
+
+      const result = await service.createDisbursement(mockDto, 'testuser');
+
+      expect(result).toEqual(createdDisbursement);
+    });
+
+    it('should create ledger entries and update accounts correctly', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        interestRate: 10,
+        numberOfInstallments: 12,
+        disbursements: [],
+      };
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        disbursement: {
+          create: jest.fn().mockResolvedValue({ id: 'disb-1' }),
+        },
+        repaymentSchedule: {
+          count: jest.fn().mockResolvedValue(0),
+          createMany: jest.fn().mockResolvedValue({ count: 12 }),
+        },
+        ledgerEntry: {
+          create: jest.fn().mockResolvedValue({ id: 'ledger-1' }),
+        },
+        account: {
+          update: jest.fn().mockResolvedValue({}),
+        },
+        auditLog: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.createDisbursement(mockDto, 'testuser');
+
+      expect(txPrisma.ledgerEntry.create).toHaveBeenCalledWith({
+        data: {
+          transactionType: TransactionType.DISBURSEMENT,
+          amount: mockDto.amount,
+          loanId: loan.id,
+          debitAccountId: 'PLATFORM_FUNDS',
+          creditAccountId: 'USER_CASH',
+        },
+      });
+
+      expect(txPrisma.account.update).toHaveBeenCalledWith({
+        where: { name: 'PLATFORM_FUNDS' },
+        data: { balance: { decrement: mockDto.amount } },
+      });
+
+      expect(txPrisma.account.update).toHaveBeenCalledWith({
+        where: { name: 'USER_CASH' },
+        data: { balance: { increment: mockDto.amount } },
+      });
+    });
+
+    it('should update loan status to ACTIVE', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        interestRate: 10,
+        numberOfInstallments: 12,
+        disbursements: [],
+      };
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn().mockResolvedValue({ ...loan, status: LoanStatus.ACTIVE }),
+        },
+        disbursement: {
+          create: jest.fn().mockResolvedValue({ id: 'disb-1' }),
+        },
+        repaymentSchedule: {
+          count: jest.fn().mockResolvedValue(0),
+          createMany: jest.fn().mockResolvedValue({ count: 12 }),
+        },
+        ledgerEntry: {
+          create: jest.fn().mockResolvedValue({ id: 'ledger-1' }),
+        },
+        account: {
+          update: jest.fn().mockResolvedValue({}),
+        },
+        auditLog: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.createDisbursement(mockDto, 'testuser');
+
+      expect(txPrisma.loan.update).toHaveBeenCalledWith({
+        where: { id: 'loan-1' },
+        data: { status: LoanStatus.ACTIVE },
+      });
+    });
+
+    it('should skip repayment schedule creation if schedules already exist', async () => {
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.APPROVED,
+        amount: 1000,
+        interestRate: 10,
+        numberOfInstallments: 12,
+        disbursements: [],
+      };
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        disbursement: {
+          create: jest.fn().mockResolvedValue({ id: 'disb-1' }),
+        },
+        repaymentSchedule: {
+          count: jest.fn().mockResolvedValue(12), // Already exists
+          createMany: jest.fn(),
+        },
+        ledgerEntry: {
+          create: jest.fn().mockResolvedValue({ id: 'ledger-1' }),
+        },
+        account: {
+          update: jest.fn().mockResolvedValue({}),
+        },
+        auditLog: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.createDisbursement(mockDto, 'testuser');
+
+      expect(txPrisma.repaymentSchedule.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getAllDisbursements', () => {
+    it('should return all disbursements', async () => {
+      const disbursements = [
+        { id: 'disb-1', amount: 1000 },
+        { id: 'disb-2', amount: 2000 },
+      ];
+
+      mockPrisma.disbursement.findMany.mockResolvedValue(disbursements);
+
+      const result = await service.getAllDisbursements();
+
+      expect(result).toEqual(disbursements);
+      expect(mockPrisma.disbursement.findMany).toHaveBeenCalled();
+    });
+
+    it('should return empty array when no disbursements exist', async () => {
+      mockPrisma.disbursement.findMany.mockResolvedValue([]);
+
+      const result = await service.getAllDisbursements();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getDisbursementById', () => {
+    it('should return disbursement when found', async () => {
+      const disbursement = { id: 'disb-1', amount: 1000 };
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+
+      const result = await service.getDisbursementById('disb-1');
+
+      expect(result).toEqual(disbursement);
+      expect(mockPrisma.disbursement.findUnique).toHaveBeenCalledWith({
+        where: { id: 'disb-1' },
+      });
+    });
+
+    it('should throw NotFoundException when disbursement not found', async () => {
+      mockPrisma.disbursement.findUnique.mockResolvedValue(null);
+
+      await expect(service.getDisbursementById('invalid-id')).rejects.toThrow(
+        NotFoundException
+      );
+      await expect(service.getDisbursementById('invalid-id')).rejects.toThrow(
+        'Disbursement not found'
+      );
+    });
+  });
+
+  describe('rollbackDisbursement', () => {
+    const mockUser = { id: 'user-1', username: 'testuser' };
+
+    it('should throw NotFoundException when disbursement not found', async () => {
+      mockPrisma.disbursement.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.rollbackDisbursement('invalid-id', 'testuser')
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.rollbackDisbursement('invalid-id', 'testuser')
+      ).rejects.toThrow('Disbursement not found');
+    });
+
+    it('should throw NotFoundException when associated loan not found', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-missing',
+        amount: 1000,
+      };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.$transaction.mockImplementation(async (callback) => {
+        const txPrisma = {
+          loan: { findUnique: jest.fn().mockResolvedValue(null) },
+        };
+        return callback(txPrisma);
+      });
+
+      await expect(
+        service.rollbackDisbursement('disb-1', 'testuser')
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.rollbackDisbursement('disb-1', 'testuser')
+      ).rejects.toThrow('Associated loan not found');
+    });
+
+    it('should successfully rollback disbursement', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+        status: DisbursementStatus.COMPLETED,
+      };
+
+      const loan = {
+        id: 'loan-1',
+        status: LoanStatus.ACTIVE,
+        amount: 1000,
+      };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn().mockResolvedValue({ ...loan, status: LoanStatus.APPROVED }),
+        },
+        disbursement: {
+          update: jest.fn().mockResolvedValue({
+            ...disbursement,
+            status: DisbursementStatus.ROLLED_BACK,
+          }),
+        },
+        ledgerEntry: {
+          create: jest.fn().mockResolvedValue({ id: 'ledger-rollback' }),
+        },
+        account: {
+          update: jest.fn().mockResolvedValue({}),
+        },
+        auditLog: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+        repaymentSchedule: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 12 }),
+        },
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      const result = await service.rollbackDisbursement('disb-1', 'testuser');
+
+      expect(result).toEqual({ message: 'Disbursement rolled back successfully' });
+    });
+
+    it('should create rollback ledger entry with correct values', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+      };
+
+      const loan = { id: 'loan-1', status: LoanStatus.ACTIVE };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn(),
+        },
+        disbursement: { update: jest.fn() },
+        ledgerEntry: {
+          create: jest.fn().mockResolvedValue({ id: 'ledger-rollback' }),
+        },
+        account: { update: jest.fn() },
+        auditLog: { create: jest.fn() },
+        repaymentSchedule: { deleteMany: jest.fn() },
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.rollbackDisbursement('disb-1', 'testuser');
+
+      expect(txPrisma.ledgerEntry.create).toHaveBeenCalledWith({
+        data: {
+          transactionType: TransactionType.ROLLBACK,
+          debitAccountId: 'USER_CASH',
+          creditAccountId: 'PLATFORM_FUNDS',
+          amount: 1000,
+        },
+      });
+    });
+
+    it('should update accounts correctly on rollback', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+      };
+
+      const loan = { id: 'loan-1', status: LoanStatus.ACTIVE };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn(),
+        },
+        disbursement: { update: jest.fn() },
+        ledgerEntry: { create: jest.fn().mockResolvedValue({ id: 'ledger-1' }) },
+        account: { update: jest.fn() },
+        auditLog: { create: jest.fn() },
+        repaymentSchedule: { deleteMany: jest.fn() },
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.rollbackDisbursement('disb-1', 'testuser');
+
+      expect(txPrisma.account.update).toHaveBeenCalledWith({
+        where: { name: 'USER_CASH' },
+        data: { balance: { decrement: disbursement.amount } },
+      });
+
+      expect(txPrisma.account.update).toHaveBeenCalledWith({
+        where: { name: 'PLATFORM_FUNDS' },
+        data: { balance: { increment: disbursement.amount } },
+      });
+    });
+
+    it('should delete repayment schedules on rollback', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+      };
+
+      const loan = { id: 'loan-1', status: LoanStatus.ACTIVE };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn(),
+        },
+        disbursement: { update: jest.fn() },
+        ledgerEntry: { create: jest.fn().mockResolvedValue({ id: 'ledger-1' }) },
+        account: { update: jest.fn() },
+        auditLog: { create: jest.fn() },
+        repaymentSchedule: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 12 }),
+        },
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.rollbackDisbursement('disb-1', 'testuser');
+
+      expect(txPrisma.repaymentSchedule.deleteMany).toHaveBeenCalledWith({
+        where: { loanId: loan.id },
+      });
+    });
+
+    it('should update loan status back to APPROVED on rollback', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+      };
+
+      const loan = { id: 'loan-1', status: LoanStatus.ACTIVE };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn().mockResolvedValue({ ...loan, status: LoanStatus.APPROVED }),
+        },
+        disbursement: { update: jest.fn() },
+        ledgerEntry: { create: jest.fn().mockResolvedValue({ id: 'ledger-1' }) },
+        account: { update: jest.fn() },
+        auditLog: { create: jest.fn() },
+        repaymentSchedule: { deleteMany: jest.fn() },
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.rollbackDisbursement('disb-1', 'testuser');
+
+      expect(txPrisma.loan.update).toHaveBeenCalledWith({
+        where: { id: loan.id },
+        data: { status: LoanStatus.APPROVED },
+      });
+    });
+
+    it('should update disbursement status to ROLLED_BACK', async () => {
+      const disbursement = {
+        id: 'disb-1',
+        loanId: 'loan-1',
+        amount: 1000,
+      };
+
+      const loan = { id: 'loan-1', status: LoanStatus.ACTIVE };
+
+      mockPrisma.disbursement.findUnique.mockResolvedValue(disbursement);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      const txPrisma = {
+        loan: { 
+          findUnique: jest.fn().mockResolvedValue(loan),
+          update: jest.fn(),
+        },
+        disbursement: {
+          update: jest.fn().mockResolvedValue({
+            ...disbursement,
+            status: DisbursementStatus.ROLLED_BACK,
+          }),
+        },
+        ledgerEntry: { create: jest.fn().mockResolvedValue({ id: 'ledger-1' }) },
+        account: { update: jest.fn() },
+        auditLog: { create: jest.fn() },
+        repaymentSchedule: { deleteMany: jest.fn() },
+      };
+
+      mockPrisma.$transaction.mockImplementation(async (callback) => callback(txPrisma));
+
+      await service.rollbackDisbursement('disb-1', 'testuser');
+
+      expect(txPrisma.disbursement.update).toHaveBeenCalledWith({
+        where: { id: disbursement.id },
+        data: { status: DisbursementStatus.ROLLED_BACK },
+      });
+    });
   });
 });

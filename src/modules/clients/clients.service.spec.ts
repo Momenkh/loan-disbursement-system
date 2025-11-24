@@ -39,4 +39,30 @@ describe('ClientsService', () => {
     expect(mockPrisma.client.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: dto });
     expect(res).toEqual({ id: 'c1', ...dto });
   });
+
+  it('updateKyc should call findOne then update kycStatus', async () => {
+    const mockPrisma: any = {
+      client: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'c2' }),
+        update: jest.fn().mockResolvedValue({ id: 'c2', kycStatus: 'verified' }),
+      },
+    };
+    (service as any).prisma = mockPrisma;
+    const res = await service.updateKyc('c2', { kycStatus: 'verified' } as any);
+    expect(mockPrisma.client.update).toHaveBeenCalledWith({ where: { id: 'c2' }, data: { kycStatus: 'verified' } });
+    expect(res).toEqual({ id: 'c2', kycStatus: 'verified' });
+  });
+
+  it('remove should delete client after findOne', async () => {
+    const mockPrisma: any = {
+      client: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'c3' }),
+        delete: jest.fn().mockResolvedValue({ id: 'c3' }),
+      },
+    };
+    (service as any).prisma = mockPrisma;
+    const res = await service.remove('c3');
+    expect(mockPrisma.client.delete).toHaveBeenCalledWith({ where: { id: 'c3' } });
+    expect(res).toEqual({ id: 'c3' });
+  });
 });
