@@ -38,7 +38,7 @@ async function main() {
     create: {
       id: adminId,
       username: adminUsername,
-      password: 'admin_password',
+      password: '$2b$10$CwTycUXWue0Thq9StjUM0uMFnO06ozXGXxrQcSM7aHnSUdwrEDG/u',
       role: 'ADMIN',
     },
   });
@@ -49,7 +49,7 @@ async function main() {
     create: {
       id: staffId,
       username: staffUsername,
-      password: 'staff_password',
+      password: '$2b$10$CwTycUXWue0Thq9StjUM0uMFnO06ozXGXxrQcSM7aHnSUdwrEDG/u',
       role: 'STAFF',
     },
   });

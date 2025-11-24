@@ -12,6 +12,10 @@ describe('DisbursementsService', () => {
       {} as any, 
       { createLedgerEntry: jest.fn() } as any
     );
+    // default prisma user lookup to return a user id so service.user lookup doesn't blow up
+    (service as any).prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ id: 'user123' }) }
+    } as any;
   });
 
   it('createDisbursement should throw when loan not found', async () => {
@@ -53,6 +57,8 @@ describe('DisbursementsService', () => {
       amount: 1000, 
       interestRate: 10, 
       numberOfInstallments: 12 
+      ,
+      disbursements: []
     };
     
     const mockTx: any = {
@@ -110,10 +116,12 @@ describe('DisbursementsService', () => {
       amount: 1000, 
       interestRate: 10, 
       numberOfInstallments: 12,
-      disbursement: {
-        id: 'd-existing',
-        status: DisbursementStatus.PENDING
-      }
+      disbursements: [
+        {
+          id: 'd-existing',
+          status: DisbursementStatus.PENDING
+        }
+      ]
     };
     
     const mockTx: any = {
@@ -166,10 +174,12 @@ describe('DisbursementsService', () => {
       amount: 1000, 
       interestRate: 10, 
       numberOfInstallments: 12,
-      disbursement: {
-        id: 'd-existing',
-        status: DisbursementStatus.COMPLETED
-      }
+      disbursements: [
+        {
+          id: 'd-existing',
+          status: DisbursementStatus.COMPLETED
+        }
+      ]
     };
     
     const mockTx: any = {
@@ -203,7 +213,7 @@ describe('DisbursementsService', () => {
       if (call === 1) {
         return {
           loan: { 
-            findUnique: jest.fn().mockResolvedValue({ ...loan, disbursement: null }), 
+            findUnique: jest.fn().mockResolvedValue({ ...loan, disbursements: [] }), 
             update: jest.fn().mockResolvedValue({}) 
           },
           disbursement: { 
@@ -228,10 +238,7 @@ describe('DisbursementsService', () => {
         loan: { 
           findUnique: jest.fn().mockResolvedValue({ 
             ...loan, 
-            disbursement: { 
-              id: 'd-new', 
-              status: DisbursementStatus.COMPLETED 
-            } 
+            disbursements: [ { id: 'd-new', status: DisbursementStatus.COMPLETED } ]
           }) 
         }
       };
