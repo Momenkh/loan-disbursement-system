@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile   # backend Dockerfile in root
+    container_name: loan-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+
+  frontend:
+    build:
+      context: ./loan-disbursement-system-flend-fe
+      dockerfile: Dockerfile   # frontend Dockerfile inside FE folder
+    container_name: loan-frontend
+    ports:
+      - "4173:4173"
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:15
+    container_name: loan-db
+    environment:
+      POSTGRES_DB: loan_system
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
